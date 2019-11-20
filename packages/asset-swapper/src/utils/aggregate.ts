@@ -9,14 +9,16 @@ import { constants } from '../constants';
 
 const CHAIN_ID = constants.MAINNET_CHAIN_ID;
 const EXCHANGE_ADDRESS = getContractAddressesForChainOrThrow(CHAIN_ID).exchange;
-const KYBER_BRIDGE_ADDRESS = '0x0000000000000000000000000000000000000000'; // TODO
-const ETH2DAI_BRIDGE_ADDRESS = '0x0000000000000000000000000000000000000000'; // TODO
-const UNISWAP_BRIDGE_ADDRESS = '0x0000000000000000000000000000000000000000'; // TODO
+const { NULL_BYTES, NULL_ADDRESS } = constants;
 const ZERO = new BigNumber(0);
 const INFINITE_TIMESTAMP_SEC = new BigNumber(2524604400);
 const DEFAULT_RUN_LIMIT = 1024;
 const DEFAULT_BRIDGE_SLIPPAGE = 0.0005;
-const { NULL_BYTES, NULL_ADDRESS } = constants;
+// TODO(dorothy-zbornak): Point these addresses to the mainnet.
+const SAMPLER_ADDRESS = '0x425335175ecb488d7d656952da9819a48d3ffd6e';
+const KYBER_BRIDGE_ADDRESS = '0xa0cdca934847556eaf431d909fb3cf4aca01df66';
+const ETH2DAI_BRIDGE_ADDRESS = '0x27b8c4473c6b885d0b060d722cf614dbc3f9adfb';
+const UNISWAP_BRIDGE_ADDRESS = '0x9b81c8beee5d0ff8b128adc04db71f33022c5163';
 
 /**
  * DEX sources to aggregate.
@@ -272,7 +274,10 @@ async function queryNetworkAsync(
     if (!provider) {
         throw new Error('missing provider');
     }
-
+    const sampler = new ERC20BridgeSamplerContract(
+        SAMPLER_ADDRESS,
+        provider,
+    );
     // TODO
 }
 
