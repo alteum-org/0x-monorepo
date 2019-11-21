@@ -32,6 +32,8 @@ contract DeploymentConstants {
     address constant private UNISWAP_EXCHANGE_FACTORY_ADDRESS = 0xc0a47dFe034B400B47bDaD5FecDa2621de6c4d95;
     /// @dev Mainnet address of the Eth2Dai `MatchingMarket` contract.
     address constant private ETH2DAI_ADDRESS = 0x39755357759cE0d7f32dC8dC45414CCa409AE24e;
+    /// @dev Mainnet address of the DyDx contract.
+    address constant private DYDX_ADDRESS = 0x1E0447b19BB6EcFdAe1e4AE1694b0C3659614e4e;
 
     /// @dev Overridable way to get the `KyberNetworkProxy` address.
     /// @return kyberAddress The `IKyberNetworkProxy` address.
@@ -71,5 +73,15 @@ contract DeploymentConstants {
         returns (address eth2daiAddress)
     {
         return ETH2DAI_ADDRESS;
+    }
+
+    /// @dev Overridable way to get the DyDx contract.
+    /// @return exchange The DyDx exchange contract.
+    function _getDyDxAddress()
+        internal
+        view
+        returns (address dydxAddress)
+    {
+        return DYDX_ADDRESS;
     }
 }
