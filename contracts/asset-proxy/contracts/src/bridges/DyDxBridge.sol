@@ -34,12 +34,10 @@ contract DyDxBridge is
     DeploymentConstants
 {
 
-    struct DyDxInfo {
-        address accountOperator;
-        address accountOwner;
-        uint256 accountNumber;
-        uint256 fromMarketId;
-        uint256 toMarketId;
+    struct bridgeInfo {
+        bool shouldDepositIntoDydx;         // True iff contract balance should be deposited into DyDx account.
+        address fromTokenAddress;           // The token given to `from` or deposited into the DyDx account.
+        uint256 dydxAccountNumber;          // Account number used by
     }
 
     /// @dev Callback for `IERC20Bridge`.
@@ -68,7 +66,7 @@ contract DyDxBridge is
     /// @return success The magic bytes if successful.
     function bridgeTransferFrom(
         address toTokenAddress,
-        address /* from */,
+        address from,
         address to,
         uint256 amount,
         bytes calldata bridgeData
@@ -76,24 +74,60 @@ contract DyDxBridge is
         external
         returns (bytes4 success)
     {
-        // Decode DyDx info from the bridge data.
-        // This encapsulates an account owned by `from`, as well as
-        // the tokens being exchanged by `from` and `to`.
-        (DyDxInfo memory dydxInfo) = abi.decode(bridgeData, (DyDxInfo));
+        // Decode bridge data.
+        (BridgeInfo memory bridgeInfo) = abi.decode(bridgeData, (bridgeInfo, DyDxInfo));
 
         // Cache dydx contract.
         IDyDx dydx = IDyDx(_getDyDxAddress());
 
-        // Set allowance for this contract.
-        address fromTokenAddress = dydx.getMarketTokenAddress(dydxInfo.fromMarketId);
-        uint256 fromTokenAmount = IERC20Token(fromTokenAddress).balanceOf(address(this));
-        LibERC20Token.approve(fromTokenAddress, address(dydx), uint256(-1));
+        // Cache the balance held by this contract.
+        IERC20Token fromToken = IERC20Token(bridgeInfo.fromTokenAddress);
+        uint256 fromTokenAmount = fromToken.balanceOf(address(this));
 
         // Construct dydx account info.
-        IDyDx.AccountInfo memory account = IDyDx.AccountInfo({
-            owner: dydxInfo.accountOwner,
+        IDyDx.AccountInfo[] memory accounts = new IDyDx.AccountInfo[](1);
+        accounts[0] = IDyDx.AccountInfo({
+            owner: from,
             number: dydxInfo.accountNumber
         });
+
+        // Construct arguments to `dydx.operate`.
+        IDyDx.ActionArgs[] memory actions;
+        if (dydxInfo.depositIntoDyDx) {
+            // Generate deposit/withdraw actions
+            actions = new IDyDx.ActionArgs[](2);
+            actions[0] = depositAction;
+            actions[1] = withdrawAction;
+
+            // Allow DyDx to deposit `fromToken` from this contract.
+            LibERC20Token.approve(
+                fromTokenAddress,
+                address(dydx),
+                uint256(-1)
+            );
+        } else {
+            // Generate withdraw action
+            actions = new IDyDx.ActionArgs[](1);
+            actions[0] = withdrawAction;
+
+            // Transfer `fromToken` to `from`
+            require(
+                fromToken.transfer(from, fromTokenAmount),
+                "TRANSFER_OF_FROM_TOKEN_FAILED"
+            );
+        }
+
+        // Run operations. This will revert on failure.
+        dydx.operate(accounts, actions);
+        return BRIDGE_SUCCESS;
+    }
+
+    function _createDepositAction()
+        private
+        view
+    {
+        // Query DyDx for token market.
+        dydx.getMarketTokenAddress
 
         // Construct action to deposit tokens held by this contract into DyDx.
         IDyDx.AssetAmount memory amountToDeposit = IDyDx.AssetAmount({
@@ -108,13 +142,18 @@ contract DyDxBridge is
             amount: amountToDeposit,                    // amount to deposit.
             accountId: 0,                               // index in the `accounts` when calling `operate` below.
             primaryMarketId: dydxInfo.fromMarketId,     // indicates which token to deposit.
-            otherAddress: address(this),                // despoit tokens from `this` address.
+            otherAddress: address(this),                // deposit tokens from `this` address.
             // unused parameters
             secondaryMarketId: 0,
             otherAccountId: 0,
             data: hex''
         });
+    }
 
+    function _createWithdrawAction()
+        private
+        view
+    {
         // Construct action to withdraw tokens from dydx into `to`.
         IDyDx.AssetAmount memory amountToWithdraw = IDyDx.AssetAmount({
             sign: true,                                 // true if positive.
@@ -134,17 +173,6 @@ contract DyDxBridge is
             otherAccountId: 0,
             data: hex''
         });
-
-        // Construct arguments to `dydx.operate`.
-        IDyDx.AccountInfo[] memory accounts = new IDyDx.AccountInfo[](1);
-        accounts[0] = account;
-        IDyDx.ActionArgs[] memory actions = new IDyDx.ActionArgs[](2);
-        actions[0] = depositAction;
-        actions[1] = withdrawAction;
-
-        // Run operations. This will revert on failure.
-        dydx.operate(accounts, actions);
-        return BRIDGE_SUCCESS;
     }
 
     /// @dev `SignatureType.Wallet` callback, so that this bridge can be the maker
