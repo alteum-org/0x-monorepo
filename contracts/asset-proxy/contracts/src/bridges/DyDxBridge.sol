@@ -33,7 +33,6 @@ import "../interfaces/IAssetData.sol";
 // solhint-disable space-after-comma
 contract DydxBridge is
     IERC20Bridge,
-    IWallet,
     DeploymentConstants,
     Authorizable
 {
@@ -147,7 +146,7 @@ contract DydxBridge is
 
         // Run operations. This will revert on failure.
         dydx.operate(accounts, actions);
-        return BRIDGE_SUCCESS;
+        return /* BRIDGE_SUCCESS */ VALID_SIGNATURE_RETURN_VALUE;
     }
 
     function _createDepositAction(
@@ -219,25 +218,24 @@ contract DydxBridge is
     ///      has authorized the trade by signing the input order.
     /// @param data Signed tuple (ZeroExOrder, hash(ZeroExOrder))
     /// @param signature Proof that `data` has been signed.
-    /// @return magicValue bytes4(0x20c13b0b) if the signature check succeeds.
+    /// @return bytes4(0x20c13b0b) if the signature check succeeds.
     function isValidSignature(
         bytes calldata data,
         bytes calldata signature
     )
         external
         view
-        returns (bytes4 magicValue)
+        returns (bytes4)
     {
         // Assert that `data` is an encoded `OrderWithHash`.
-        bytes4 dataType = data.readBytes4(0);
         require(
-            dataType == EIP1271_ORDER_WITH_HASH_SELECTOR,
+            data.readBytes4(0) == EIP1271_ORDER_WITH_HASH_SELECTOR,
             "INVALID_DATA_EXPECTED_EIP1271_ORDER_WITH_HASH"
         );
 
         // Assert that signature is correct length.
         require(
-            signature.length == 66,
+            signature.length == 65,
             "INVALID_SIGNATURE_LENGTH"
         );
 
@@ -250,12 +248,9 @@ contract DydxBridge is
                 (LibOrder.Order, bytes32)
         );
 
-        bytes memory dydxBridgeAssetData = order.makerAssetData;
-
         // Decode and validate the asset proxy id.
-        bytes4 assetProxyId = dydxBridgeAssetData.readBytes4(0);
         require(
-            assetProxyId == IAssetData(address(0)).ERC20Bridge.selector,
+            order.makerAssetData.readBytes4(0) == IAssetData(address(0)).ERC20Bridge.selector,
             "MAKER_ASSET_DATA_NOT_ENCODED_FOR_ERC20_BRIDGE"
         );
 
@@ -265,7 +260,7 @@ contract DydxBridge is
             address bridgeAddress,
             bytes memory encodedBridgeData
         ) = abi.decode(
-            dydxBridgeAssetData.slice(4, dydxBridgeAssetData.length),
+            order.makerAssetData.slice(4, order.makerAssetData.length),
             (address, address, bytes)
         );
         require(
@@ -280,18 +275,18 @@ contract DydxBridge is
             : bridgeData.dydxAccountOwner;
 
         // Validate signature.
-        uint8 v = uint8(signature[0]);
-        bytes32 r = signature.readBytes32(1);
-        bytes32 s = signature.readBytes32(33);
         address recovered = ecrecover(
-            orderHash,
-            v,
-            r,
-            s
+            keccak256(abi.encodePacked(
+                    "\x19Ethereum Signed Message:\n32",
+                    orderHash
+            )),
+            uint8(signature[0]),        // v
+            signature.readBytes32(1),   // r
+            signature.readBytes32(33)   // s
         );
 
         // Return `VALID_SIGNATURE_RETURN_VALUE` iff signature is valid.
-        return (signerAddress == recovered)
+       return (signerAddress == recovered)
             ? VALID_SIGNATURE_RETURN_VALUE
             : INVALID_SIGNATURE_RETURN_VALUE;
     }

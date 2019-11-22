@@ -14,12 +14,13 @@ import { AssetProxyId } from '@0x/types';
 import { AbiEncoder, BigNumber } from '@0x/utils';
 import { DecodedLogs } from 'ethereum-types';
 import * as _ from 'lodash';
+import * as ethUtil from 'ethereumjs-util';
 
 import { artifacts } from './artifacts';
 
 import { DydxBridgeContract, IAssetDataContract, TestDydxBridgeContract } from './wrappers';
 
-blockchainTests.resets('Dydx unit tests', env => {
+blockchainTests.resets.only('Dydx unit tests', env => {
     const dydxAccountNumber = new BigNumber(1);
     const dydxFromMarketId = new BigNumber(2);
     const dydxToMarketId = new BigNumber(3);
@@ -78,12 +79,8 @@ blockchainTests.resets('Dydx unit tests', env => {
         eip1271Encoder = new TestDydxBridgeContract(constants.NULL_ADDRESS, env.provider);
     });
 
-    describe.only('isValidSignature()', () => {
+    describe('isValidSignature()', () => {
         const SUCCESS_BYTES = '0x20c13b0b';
-
-        const runTest = async (signer: string) => {
-
-        }
 
         it('returns success bytes if signature is valid', async () => {
             // Construct valid bridge data for dydx account owner
@@ -113,14 +110,11 @@ blockchainTests.resets('Dydx unit tests', env => {
 
             // Encode `isValidSignature` parameters
             const eip1271Data = eip1271Encoder.OrderWithHash(signedOrder, signedOrderHash).getABIEncodedTransactionData();
+            const eip1271Signature = ethUtil.bufferToHex(ethUtil.toBuffer(signedOrder.signature).slice(0, 65)); // pop signature type from end
 
             // Validate signature
-            const result = await testContract.isValidSignature1(eip1271Data, signedOrder.signature).callAsync();
+            const result = await testContract.isValidSignature(eip1271Data, eip1271Signature).callAsync();
             expect(result).to.eq(SUCCESS_BYTES);
-        });
-
-        it('returns failure byrtes if signature is invalid', async () => {
-
         });
     });
 });
