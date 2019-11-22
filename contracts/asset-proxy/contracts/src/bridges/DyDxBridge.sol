@@ -39,6 +39,8 @@ contract DydxBridge is
 
     using LibBytes for bytes;
 
+    // Return values for `isValidSignature`
+    //  bytes4(keccak256('isValidSignature(bytes,bytes)'))
     bytes4 constant VALID_SIGNATURE_RETURN_VALUE = bytes4(0x20c13b0b);
     bytes4 constant INVALID_SIGNATURE_RETURN_VALUE = bytes4(0);
 
@@ -50,9 +52,9 @@ contract DydxBridge is
         // Fields used by dydx
         address dydxAccountOwner;           // The owner of the dydx account.
         uint256 dydxAccountNumber;          // Account number used to identify the owner's specific account.
-        address dydxAccountOperator;        // Optional. Operator of dydx account who signed the order.
-        uint256 dydxFromMarketId;           //
-        uint256 dydxToMarketId;
+        address dydxAccountOperator;        // Operator of dydx account who signed the order (if transferred by an operator).
+        uint256 dydxFromMarketId;           // Market ID of `from` asset.
+        uint256 dydxToMarketId;             // Market ID of `to` asset.
         // Fields used by bridge
         bool shouldDepositIntodydx;         // True iff contract balance should be deposited into dydx account.
         address fromTokenAddress;           // The token given to `from` or deposited into the dydx account.
@@ -60,29 +62,25 @@ contract DydxBridge is
 
     /// @dev Callback for `IERC20Bridge`.
     ///      Function Prerequisite:
-    ///        1. Tokens are held in this contract that correspond to `dydxInfo.fromMarketId` (`fromTokenAddress`), and
-    ///        2. Tokens are held in a dydx account that corresponds to `dydxInfo.toMarketId` (`toTokenAddress`)
+    ///        1. Tokens are held in this contract that correspond to `dydxFromMarketId`, and
+    ///        2. Tokens are held in a dydx account that correspond to `dydxToMarketId`
     ///
     ///      When called, two actions take place:
-    ///        1. The total balance held by this contract is deposited into the dydx account OR transferred to `from`.
-    ///        2. A portion of tokens (`amount`) from the dydx account are withdrawn to `to` (`dydxInfo.toMarketId`).
+    ///        1. The total balance held by this contract is either (i) deposited into the dydx account OR (ii) transferred to `from`.
+    ///           This is dictated by `BridgeData.shouldDepositIntoDydx`.
+    ///        2. Some `amount` of tokens are withdrawn from the dydx account into the address `to`.
     ///
-    ///      In the context of a 0x Trade:
-    ///        1. The Maker owns a dydx account and this bridge is set to the order's `makerAddress`.
-    ///        2. The order's `takerAsset` corresponds to the `fromMarketId`;
-    ///           the order's `makerAsset` corresponds to the `toMarketId`.
-    ///        3. When the trade is executed on the 0x Exchange, the `takerAsset` is first transferred to this bridge
-    ///           and then into the maker's dydx account. (Step 1 above).
-    ///        4. In return, the `makerAsset` is withdrawn from the maker's dydx account and transferred to the taker.
-    ///           (Step 2 above).
-    ///
+    ///      Notes:
+    ///         1. This bridge must be set as an operator of the dydx account that is being operated on.
+    ///         2. This function may only be called in the context of the 0x Exchange executing an order (ERC20Bridge is authorized).
+    ///         3. The order must be signed by the owner or an operator of the dydx account. This is validated in `isValidSignature`.
     /// @param from The sender of the tokens.
     /// @param to The recipient of the tokens.
     /// @param amount Minimum amount of `toTokenAddress` tokens to buy.
     /// @param encodedBridgeData An abi-encoded `BridgeData` struct.
     /// @return success The magic bytes if successful.
     function bridgeTransferFrom(
-        address /* toTokenAddress */,
+        address,
         address from,
         address to,
         uint256 amount,
@@ -146,9 +144,10 @@ contract DydxBridge is
 
         // Run operations. This will revert on failure.
         dydx.operate(accounts, actions);
-        return /* BRIDGE_SUCCESS */ VALID_SIGNATURE_RETURN_VALUE;
+        return BRIDGE_SUCCESS;
     }
 
+    /// @dev Returns a dydx `DepositAction`.
     function _createDepositAction(
         address depositFrom,
         uint256 amount,
@@ -181,6 +180,7 @@ contract DydxBridge is
         return depositAction;
     }
 
+    /// @dev Returns a dydx `WithdrawAction`.
     function _createWithdrawAction(
         address withdrawTo,
         uint256 amount,
