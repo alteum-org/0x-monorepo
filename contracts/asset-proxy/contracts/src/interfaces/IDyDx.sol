@@ -87,13 +87,13 @@ interface IDyDx {
     )
         external;
 
-    /// @dev Get basic information about a particular market.
-    /// @param  marketId  The market to query.
-    /// @return           A Storage.Market struct with the current state of the market.
-    function getMarket(
+    /// @dev Get the ERC20 token address for a market.
+    /// @param  marketId  The market to query
+    /// @return           The token address
+    function getMarketTokenAddress(
         uint256 marketId
     )
-        public
+        external
         view
-        returns (Storage.Market memory);
+        returns (address);
 }
