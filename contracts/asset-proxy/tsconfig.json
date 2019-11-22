@@ -37,6 +37,7 @@
         "test/generated-artifacts/MultiAssetProxy.json",
         "test/generated-artifacts/Ownable.json",
         "test/generated-artifacts/StaticCallProxy.json",
+        "test/generated-artifacts/TestDydxBridge.json",
         "test/generated-artifacts/TestERC20Bridge.json",
         "test/generated-artifacts/TestEth2DaiBridge.json",
         "test/generated-artifacts/TestKyberBridge.json",
