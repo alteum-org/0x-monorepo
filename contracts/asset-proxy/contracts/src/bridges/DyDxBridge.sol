@@ -25,6 +25,7 @@ import "@0x/contracts-exchange-libs/contracts/src/IWallet.sol";
 import "@0x/contracts-exchange-libs/contracts/src/LibOrder.sol";
 import "@0x/contracts-utils/contracts/src/DeploymentConstants.sol";
 import "@0x/contracts-utils/contracts/src/LibBytes.sol";
+import "@0x/contracts-utils/contracts/src/Authorizable.sol";
 import "../interfaces/IERC20Bridge.sol";
 import "../interfaces/IDydx.sol";
 import "../interfaces/IAssetData.sol";
@@ -33,7 +34,8 @@ import "../interfaces/IAssetData.sol";
 contract DydxBridge is
     IERC20Bridge,
     IWallet,
-    DeploymentConstants
+    DeploymentConstants,
+    Authorizable
 {
 
     using LibBytes for bytes;
@@ -88,6 +90,7 @@ contract DydxBridge is
         bytes calldata bridgeData
     )
         external
+        onlyAuthorized
         returns (bytes4 success)
     {
         // Decode bridge data.
@@ -99,6 +102,7 @@ contract DydxBridge is
         // Cache the balance held by this contract.
         IERC20Token fromToken = IERC20Token(bridgeInfo.fromTokenAddress);
         uint256 fromTokenAmount = fromToken.balanceOf(address(this));
+        uint256 toTokenAmount = amount;
 
         // Construct dydx account info.
         IDydx.AccountInfo[] memory accounts = new IDydx.AccountInfo[](1);
@@ -112,8 +116,16 @@ contract DydxBridge is
         if (bridgeInfo.shouldDepositIntodydx) {
             // Generate deposit/withdraw actions
             actions = new IDydx.ActionArgs[](2);
-            actions[0] = _createDepositAction(bridgeInfo, fromTokenAmount);
-            actions[1] = _createWithdrawAction(bridgeInfo, amount, to);
+            actions[0] = _createDepositAction(
+                address(this),                  // deposit `fromToken` into dydx from this contract.
+                fromTokenAmount,                // amount to deposit.
+                bridgeInfo                      // bridge data.
+            );
+            actions[1] = _createWithdrawAction(
+                to,                             // withdraw `toToken` from dydx to `to`.
+                toTokenAmount,                  // amount to withdraw.
+                bridgeInfo                      // bridge data.
+            );
 
             // Allow dydx to deposit `fromToken` from this contract.
             LibERC20Token.approve(
@@ -124,7 +136,7 @@ contract DydxBridge is
         } else {
             // Generate withdraw action
             actions = new IDydx.ActionArgs[](1);
-            actions[0] = _createWithdrawAction(bridgeInfo, amount, to);
+            actions[0] = _createWithdrawAction(to, toTokenAmount, bridgeInfo);
 
             // Transfer `fromToken` to `from`
             require(
@@ -139,11 +151,12 @@ contract DydxBridge is
     }
 
     function _createDepositAction(
-        BridgeInfo memory bridgeInfo,
-        uint256 amount
+        address depositFrom,
+        uint256 amount,
+        BridgeInfo memory bridgeInfo
     )
         internal
-        view
+        pure
         returns (IDydx.ActionArgs memory)
     {
         // Construct action to deposit tokens held by this contract into dydx.
@@ -159,7 +172,7 @@ contract DydxBridge is
             amount: amountToDeposit,                        // amount to deposit.
             accountId: 0,                                   // index in the `accounts` when calling `operate` below.
             primaryMarketId: bridgeInfo.dydxFromMarketId,   // indicates which token to deposit.
-            otherAddress: address(this),                    // deposit tokens from `this` address.
+            otherAddress: depositFrom,                      // deposit tokens from `this` address.
             // unused parameters
             secondaryMarketId: 0,
             otherAccountId: 0,
@@ -170,12 +183,12 @@ contract DydxBridge is
     }
 
     function _createWithdrawAction(
-        BridgeInfo memory bridgeInfo,
+        address withdrawTo,
         uint256 amount,
-        address to
+        BridgeInfo memory bridgeInfo
     )
         internal
-        view
+        pure
         returns (IDydx.ActionArgs memory)
     {
         // Construct action to withdraw tokens from dydx into `to`.
@@ -191,7 +204,7 @@ contract DydxBridge is
             amount: amountToWithdraw,                       // amount to withdraw.
             accountId: 0,                                   // index in the `accounts` when calling `operate` below.
             primaryMarketId: bridgeInfo.dydxToMarketId,     // indicates which token to withdraw.
-            otherAddress: to,                               // withdraw tokens to `to` address.
+            otherAddress: withdrawTo,                       // withdraw tokens to `to` address.
             // unused parameters
             secondaryMarketId: 0,
             otherAccountId: 0,
