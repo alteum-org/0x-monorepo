@@ -47,7 +47,7 @@ contract DydxBridge is
     // == bytes4(keccak256('OrderWithHash((address,address,address,address,uint256,uint256,uint256,uint256,uint256,uint256,bytes,bytes,bytes,bytes),bytes32)'))
     bytes4 constant EIP1271_ORDER_WITH_HASH_SELECTOR = bytes4(0x3efe50c8);
 
-    struct BridgeInfo {
+    struct BridgeData {
         // Fields used by dydx
         address dydxAccountOwner;           // The owner of the dydx account.
         uint256 dydxAccountNumber;          // Account number used to identify the owner's specific account.
@@ -77,66 +77,66 @@ contract DydxBridge is
     ///        4. In return, the `makerAsset` is withdrawn from the maker's dydx account and transferred to the taker.
     ///           (Step 2 above).
     ///
-    /// @param toTokenAddress The token to give to `to`.
-    /// @param to The recipient of the bought tokens.
+    /// @param from The sender of the tokens.
+    /// @param to The recipient of the tokens.
     /// @param amount Minimum amount of `toTokenAddress` tokens to buy.
-    /// @param bridgeData The abi-encoeded "from" token address.
+    /// @param encodedBridgeData An abi-encoded `BridgeData` struct.
     /// @return success The magic bytes if successful.
     function bridgeTransferFrom(
-        address toTokenAddress,
+        address /* toTokenAddress */,
         address from,
         address to,
         uint256 amount,
-        bytes calldata bridgeData
+        bytes calldata encodedBridgeData
     )
         external
         onlyAuthorized
         returns (bytes4 success)
     {
         // Decode bridge data.
-        (BridgeInfo memory bridgeInfo) = abi.decode(bridgeData, (BridgeInfo));
+        (BridgeData memory bridgeData) = abi.decode(encodedBridgeData, (BridgeData));
 
         // Cache dydx contract.
         IDydx dydx = IDydx(_getDydxAddress());
 
         // Cache the balance held by this contract.
-        IERC20Token fromToken = IERC20Token(bridgeInfo.fromTokenAddress);
+        IERC20Token fromToken = IERC20Token(bridgeData.fromTokenAddress);
         uint256 fromTokenAmount = fromToken.balanceOf(address(this));
         uint256 toTokenAmount = amount;
 
         // Construct dydx account info.
         IDydx.AccountInfo[] memory accounts = new IDydx.AccountInfo[](1);
         accounts[0] = IDydx.AccountInfo({
-            owner: bridgeInfo.dydxAccountOwner,
-            number: bridgeInfo.dydxAccountNumber
+            owner: bridgeData.dydxAccountOwner,
+            number: bridgeData.dydxAccountNumber
         });
 
         // Construct arguments to `dydx.operate`.
         IDydx.ActionArgs[] memory actions;
-        if (bridgeInfo.shouldDepositIntodydx) {
+        if (bridgeData.shouldDepositIntodydx) {
             // Generate deposit/withdraw actions
             actions = new IDydx.ActionArgs[](2);
             actions[0] = _createDepositAction(
                 address(this),                  // deposit `fromToken` into dydx from this contract.
                 fromTokenAmount,                // amount to deposit.
-                bridgeInfo                      // bridge data.
+                bridgeData                      // bridge data.
             );
             actions[1] = _createWithdrawAction(
                 to,                             // withdraw `toToken` from dydx to `to`.
                 toTokenAmount,                  // amount to withdraw.
-                bridgeInfo                      // bridge data.
+                bridgeData                      // bridge data.
             );
 
             // Allow dydx to deposit `fromToken` from this contract.
             LibERC20Token.approve(
-                bridgeInfo.fromTokenAddress,
+                bridgeData.fromTokenAddress,
                 address(dydx),
                 uint256(-1)
             );
         } else {
             // Generate withdraw action
             actions = new IDydx.ActionArgs[](1);
-            actions[0] = _createWithdrawAction(to, toTokenAmount, bridgeInfo);
+            actions[0] = _createWithdrawAction(to, toTokenAmount, bridgeData);
 
             // Transfer `fromToken` to `from`
             require(
@@ -153,7 +153,7 @@ contract DydxBridge is
     function _createDepositAction(
         address depositFrom,
         uint256 amount,
-        BridgeInfo memory bridgeInfo
+        BridgeData memory bridgeData
     )
         internal
         pure
@@ -171,7 +171,7 @@ contract DydxBridge is
             actionType: IDydx.ActionType.Deposit,           // deposit tokens.
             amount: amountToDeposit,                        // amount to deposit.
             accountId: 0,                                   // index in the `accounts` when calling `operate` below.
-            primaryMarketId: bridgeInfo.dydxFromMarketId,   // indicates which token to deposit.
+            primaryMarketId: bridgeData.dydxFromMarketId,   // indicates which token to deposit.
             otherAddress: depositFrom,                      // deposit tokens from `this` address.
             // unused parameters
             secondaryMarketId: 0,
@@ -185,7 +185,7 @@ contract DydxBridge is
     function _createWithdrawAction(
         address withdrawTo,
         uint256 amount,
-        BridgeInfo memory bridgeInfo
+        BridgeData memory bridgeData
     )
         internal
         pure
@@ -203,7 +203,7 @@ contract DydxBridge is
             actionType: IDydx.ActionType.Withdraw,          // withdraw tokens.
             amount: amountToWithdraw,                       // amount to withdraw.
             accountId: 0,                                   // index in the `accounts` when calling `operate` below.
-            primaryMarketId: bridgeInfo.dydxToMarketId,     // indicates which token to withdraw.
+            primaryMarketId: bridgeData.dydxToMarketId,     // indicates which token to withdraw.
             otherAddress: withdrawTo,                       // withdraw tokens to `to` address.
             // unused parameters
             secondaryMarketId: 0,
@@ -261,9 +261,9 @@ contract DydxBridge is
 
         // Decode the ERC20 Bridge asset data.
         (
-            address tokenAddress,
+             /* address tokenAddress */,
             address bridgeAddress,
-            bytes memory bridgeData
+            bytes memory encodedBridgeData
         ) = abi.decode(
             dydxBridgeAssetData.slice(4, dydxBridgeAssetData.length),
             (address, address, bytes)
@@ -274,10 +274,10 @@ contract DydxBridge is
         );
 
         // Decode and validate the `bridgeData` and extract the expected signer address.
-        (BridgeInfo memory bridgeInfo) = abi.decode(bridgeData, (BridgeInfo));
-        address signerAddress = bridgeInfo.dydxAccountOperator != address(0)
-            ? bridgeInfo.dydxAccountOperator
-            : bridgeInfo.dydxAccountOwner;
+        (BridgeData memory bridgeData) = abi.decode(encodedBridgeData, (BridgeData));
+        address signerAddress = bridgeData.dydxAccountOperator != address(0)
+            ? bridgeData.dydxAccountOperator
+            : bridgeData.dydxAccountOwner;
 
         // Validate signature.
         uint8 v = uint8(signature[0]);
