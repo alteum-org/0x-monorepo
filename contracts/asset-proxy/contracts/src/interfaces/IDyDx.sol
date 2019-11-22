@@ -20,7 +20,7 @@ pragma solidity ^0.5.9;
 pragma experimental ABIEncoderV2;
 
 
-interface IDyDx {
+interface IDydx {
 
     /// @dev Represents the unique key that specifies an account
     struct AccountInfo {

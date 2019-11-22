@@ -26,11 +26,11 @@ import "@0x/contracts-exchange-libs/contracts/src/LibOrder.sol";
 import "@0x/contracts-utils/contracts/src/DeploymentConstants.sol";
 import "@0x/contracts-utils/contracts/src/LibBytes.sol";
 import "../interfaces/IERC20Bridge.sol";
-import "../interfaces/IDyDx.sol";
+import "../interfaces/IDydx.sol";
 import "../interfaces/IAssetData.sol";
 
 // solhint-disable space-after-comma
-contract DyDxBridge is
+contract DydxBridge is
     IERC20Bridge,
     IWallet,
     DeploymentConstants
@@ -53,26 +53,26 @@ contract DyDxBridge is
         uint256 dydxFromMarketId;           //
         uint256 dydxToMarketId;
         // Fields used by bridge
-        bool shouldDepositIntoDyDx;         // True iff contract balance should be deposited into DyDx account.
-        address fromTokenAddress;           // The token given to `from` or deposited into the DyDx account.
+        bool shouldDepositIntodydx;         // True iff contract balance should be deposited into dydx account.
+        address fromTokenAddress;           // The token given to `from` or deposited into the dydx account.
     }
 
     /// @dev Callback for `IERC20Bridge`.
     ///      Function Prerequisite:
-    ///        1. Tokens are held in this contract that correspond to `DyDxInfo.fromMarketId` (`fromTokenAddress`), and
-    ///        2. Tokens are held in a DyDx account that corresponds to `DyDxInfo.toMarketId` (`toTokenAddress`)
+    ///        1. Tokens are held in this contract that correspond to `dydxInfo.fromMarketId` (`fromTokenAddress`), and
+    ///        2. Tokens are held in a dydx account that corresponds to `dydxInfo.toMarketId` (`toTokenAddress`)
     ///
     ///      When called, two actions take place:
-    ///        1. The total balance held by this contract is deposited into the DyDx account OR transferred to `from`.
-    ///        2. A portion of tokens (`amount`) from the DyDx account are withdrawn to `to` (`DyDxInfo.toMarketId`).
+    ///        1. The total balance held by this contract is deposited into the dydx account OR transferred to `from`.
+    ///        2. A portion of tokens (`amount`) from the dydx account are withdrawn to `to` (`dydxInfo.toMarketId`).
     ///
     ///      In the context of a 0x Trade:
-    ///        1. The Maker owns a DyDx account and this bridge is set to the order's `makerAddress`.
+    ///        1. The Maker owns a dydx account and this bridge is set to the order's `makerAddress`.
     ///        2. The order's `takerAsset` corresponds to the `fromMarketId`;
     ///           the order's `makerAsset` corresponds to the `toMarketId`.
     ///        3. When the trade is executed on the 0x Exchange, the `takerAsset` is first transferred to this bridge
-    ///           and then into the maker's DyDx account. (Step 1 above).
-    ///        4. In return, the `makerAsset` is withdrawn from the maker's DyDx account and transferred to the taker.
+    ///           and then into the maker's dydx account. (Step 1 above).
+    ///        4. In return, the `makerAsset` is withdrawn from the maker's dydx account and transferred to the taker.
     ///           (Step 2 above).
     ///
     /// @param toTokenAddress The token to give to `to`.
@@ -94,28 +94,28 @@ contract DyDxBridge is
         (BridgeInfo memory bridgeInfo) = abi.decode(bridgeData, (BridgeInfo));
 
         // Cache dydx contract.
-        IDyDx dydx = IDyDx(_getDyDxAddress());
+        IDydx dydx = IDydx(_getDydxAddress());
 
         // Cache the balance held by this contract.
         IERC20Token fromToken = IERC20Token(bridgeInfo.fromTokenAddress);
         uint256 fromTokenAmount = fromToken.balanceOf(address(this));
 
         // Construct dydx account info.
-        IDyDx.AccountInfo[] memory accounts = new IDyDx.AccountInfo[](1);
-        accounts[0] = IDyDx.AccountInfo({
+        IDydx.AccountInfo[] memory accounts = new IDydx.AccountInfo[](1);
+        accounts[0] = IDydx.AccountInfo({
             owner: bridgeInfo.dydxAccountOwner,
             number: bridgeInfo.dydxAccountNumber
         });
 
         // Construct arguments to `dydx.operate`.
-        IDyDx.ActionArgs[] memory actions;
-        if (bridgeInfo.shouldDepositIntoDyDx) {
+        IDydx.ActionArgs[] memory actions;
+        if (bridgeInfo.shouldDepositIntodydx) {
             // Generate deposit/withdraw actions
-            actions = new IDyDx.ActionArgs[](2);
+            actions = new IDydx.ActionArgs[](2);
             actions[0] = _createDepositAction(bridgeInfo, fromTokenAmount);
             actions[1] = _createWithdrawAction(bridgeInfo, amount, to);
 
-            // Allow DyDx to deposit `fromToken` from this contract.
+            // Allow dydx to deposit `fromToken` from this contract.
             LibERC20Token.approve(
                 bridgeInfo.fromTokenAddress,
                 address(dydx),
@@ -123,7 +123,7 @@ contract DyDxBridge is
             );
         } else {
             // Generate withdraw action
-            actions = new IDyDx.ActionArgs[](1);
+            actions = new IDydx.ActionArgs[](1);
             actions[0] = _createWithdrawAction(bridgeInfo, amount, to);
 
             // Transfer `fromToken` to `from`
@@ -144,18 +144,18 @@ contract DyDxBridge is
     )
         internal
         view
-        returns (IDyDx.ActionArgs memory)
+        returns (IDydx.ActionArgs memory)
     {
-        // Construct action to deposit tokens held by this contract into DyDx.
-        IDyDx.AssetAmount memory amountToDeposit = IDyDx.AssetAmount({
+        // Construct action to deposit tokens held by this contract into dydx.
+        IDydx.AssetAmount memory amountToDeposit = IDydx.AssetAmount({
             sign: true,                                 // true if positive.
-            denomination: IDyDx.AssetDenomination.Wei,  // Wei => actual token amount held in account.
-            ref: IDyDx.AssetReference.Target,           // Target => an absolute amount.
+            denomination: IDydx.AssetDenomination.Wei,  // Wei => actual token amount held in account.
+            ref: IDydx.AssetReference.Target,           // Target => an absolute amount.
             value: amount                               // amount to deposit.
         });
 
-        IDyDx.ActionArgs memory depositAction = IDyDx.ActionArgs({
-            actionType: IDyDx.ActionType.Deposit,           // deposit tokens.
+        IDydx.ActionArgs memory depositAction = IDydx.ActionArgs({
+            actionType: IDydx.ActionType.Deposit,           // deposit tokens.
             amount: amountToDeposit,                        // amount to deposit.
             accountId: 0,                                   // index in the `accounts` when calling `operate` below.
             primaryMarketId: bridgeInfo.dydxFromMarketId,   // indicates which token to deposit.
@@ -176,18 +176,18 @@ contract DyDxBridge is
     )
         internal
         view
-        returns (IDyDx.ActionArgs memory)
+        returns (IDydx.ActionArgs memory)
     {
         // Construct action to withdraw tokens from dydx into `to`.
-        IDyDx.AssetAmount memory amountToWithdraw = IDyDx.AssetAmount({
+        IDydx.AssetAmount memory amountToWithdraw = IDydx.AssetAmount({
             sign: true,                                 // true if positive.
-            denomination: IDyDx.AssetDenomination.Wei,  // Wei => actual token amount held in account.
-            ref: IDyDx.AssetReference.Target,           // Target => an absolute amount.
+            denomination: IDydx.AssetDenomination.Wei,  // Wei => actual token amount held in account.
+            ref: IDydx.AssetReference.Target,           // Target => an absolute amount.
             value: amount                               // amount to withdraw.
         });
 
-        IDyDx.ActionArgs memory withdrawAction = IDyDx.ActionArgs({
-            actionType: IDyDx.ActionType.Withdraw,          // withdraw tokens.
+        IDydx.ActionArgs memory withdrawAction = IDydx.ActionArgs({
+            actionType: IDydx.ActionType.Withdraw,          // withdraw tokens.
             amount: amountToWithdraw,                       // amount to withdraw.
             accountId: 0,                                   // index in the `accounts` when calling `operate` below.
             primaryMarketId: bridgeInfo.dydxToMarketId,     // indicates which token to withdraw.
@@ -201,8 +201,8 @@ contract DyDxBridge is
         return withdrawAction;
     }
 
-    /// @dev Given a 0x order where the `makerAssetData` corresponds to a DyDx transfer via this bridge,
-    ///      `isValidSignature` verifies that the corresponding DyDx account owner (or operator)
+    /// @dev Given a 0x order where the `makerAssetData` corresponds to a dydx transfer via this bridge,
+    ///      `isValidSignature` verifies that the corresponding dydx account owner (or operator)
     ///      has authorized the trade by signing the input order.
     /// @param data Signed tuple (ZeroExOrder, hash(ZeroExOrder))
     /// @param signature Proof that `data` has been signed.
@@ -228,7 +228,7 @@ contract DyDxBridge is
             "INVALID_SIGNATURE_LENGTH"
         );
 
-        // Decode the order and hash, plus extract the DyDxBridge asset data.
+        // Decode the order and hash, plus extract the dydxBridge asset data.
         (
             LibOrder.Order memory order,
             bytes32 orderHash
