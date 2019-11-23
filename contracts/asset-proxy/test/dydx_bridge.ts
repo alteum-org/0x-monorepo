@@ -46,75 +46,15 @@ blockchainTests.resets.only('Dydx unit tests', env => {
         [owner, dydxAccountOwner] = accounts;
         const dydxAccountOwnerPrivateKey = constants.TESTRPC_PRIVATE_KEYS[accounts.indexOf(dydxAccountOwner)];
 
-        // Create order factory for dydx bridge
-        const chainId = await env.getChainIdAsync();
-        const defaultOrderParams = {
-            ...constants.STATIC_ORDER_PARAMS,
-            makerAddress: testContract.address,
-            feeRecipientAddress: randomAddress(),
-            makerAssetData: constants.NULL_BYTES,
-            takerAssetData: constants.NULL_BYTES,
-            makerFeeAssetData: constants.NULL_BYTES,
-            takerFeeAssetData: constants.NULL_BYTES,
-            makerFee: constants.ZERO_AMOUNT,
-            takerFee: constants.ZERO_AMOUNT,
-            exchangeAddress: constants.NULL_ADDRESS,
-            chainId,
-        };
-        orderFactory = new OrderFactory(dydxAccountOwnerPrivateKey, defaultOrderParams);
-
         // Create encoder for Bridge Data
         bridgeDataEncoder = AbiEncoder.create([
-            {name: 'dydxAccountOwner', type: 'address'},
-            {name: 'dydxAccountNumber', type: 'uint256'},
-            {name: 'dydxAccountOperator', type: 'address'},
-            {name: 'dydxFromMarketId', type: 'uint256'},
-            {name: 'dydxToMarketId', type: 'uint256'},
-            {name: 'shouldDepositIntoDydx', type: 'bool'},
-            {name: 'fromTokenAddress', type: 'address'},
+            {name: 'action', type: 'uint8'},
+            {name: 'accountOwner', type: 'address'},
+            {name: 'accountNumber', type: 'uint256'},
+            {name: 'marketId', type: 'uint256'},
         ]);
 
         // Create encoders
         assetDataEncoder = new IAssetDataContract(constants.NULL_ADDRESS, env.provider);
-        eip1271Encoder = new TestDydxBridgeContract(constants.NULL_ADDRESS, env.provider);
-    });
-
-    describe('isValidSignature()', () => {
-        const SUCCESS_BYTES = '0x20c13b0b';
-
-        it('returns success bytes if signature is valid', async () => {
-            // Construct valid bridge data for dydx account owner
-            const bridgeData = {
-                dydxAccountOwner,
-                dydxAccountNumber,
-                dydxAccountOperator: constants.NULL_ADDRESS,
-                dydxFromMarketId,
-                dydxToMarketId,
-                shouldDepositIntoDydx: false,
-                fromTokenAddress: constants.NULL_ADDRESS,
-            };
-            const encodedBridgeData = bridgeDataEncoder.encode(bridgeData);
-
-            // Construct valid order from dydx account owner
-            const makerAssetData = assetDataEncoder
-                .ERC20Bridge(
-                    constants.NULL_ADDRESS,
-                    testContract.address,
-                    encodedBridgeData
-                )
-            .getABIEncodedTransactionData()
-            const signedOrder = await orderFactory.newSignedOrderAsync({
-                makerAssetData,
-            });
-            const signedOrderHash = orderHashUtils.getOrderHashHex(signedOrder);
-
-            // Encode `isValidSignature` parameters
-            const eip1271Data = eip1271Encoder.OrderWithHash(signedOrder, signedOrderHash).getABIEncodedTransactionData();
-            const eip1271Signature = ethUtil.bufferToHex(ethUtil.toBuffer(signedOrder.signature).slice(0, 65)); // pop signature type from end
-
-            // Validate signature
-            const result = await testContract.isValidSignature(eip1271Data, eip1271Signature).callAsync();
-            expect(result).to.eq(SUCCESS_BYTES);
-        });
     });
 });

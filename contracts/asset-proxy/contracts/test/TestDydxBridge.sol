@@ -19,17 +19,12 @@
 pragma solidity ^0.5.9;
 pragma experimental ABIEncoderV2;
 
-import "@0x/contracts-exchange-libs/contracts/src/LibOrder.sol";
 import "../src/bridges/DydxBridge.sol";
 
 
-contract TestDydxBridge {
+contract TestDydxBridge is
+    DydxBridge
+{
 
-     function OrderWithHash(
-        LibOrder.Order calldata order,
-        bytes32 orderHash
-    )
-        external
-        pure
-    {}
+
 }
