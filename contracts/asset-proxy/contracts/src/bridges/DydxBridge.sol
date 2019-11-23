@@ -22,26 +22,16 @@ pragma experimental ABIEncoderV2;
 import "@0x/contracts-utils/contracts/src/DeploymentConstants.sol";
 import "@0x/contracts-utils/contracts/src/Authorizable.sol";
 import "../interfaces/IERC20Bridge.sol";
+import "../interfaces/IDydxBridge.sol";
 import "../interfaces/IDydx.sol";
 
 
 contract DydxBridge is
     IERC20Bridge,
+    IDydxBridge,
     DeploymentConstants,
     Authorizable
 {
-
-    enum Action {
-        Deposit,        // Deposit tokens into dydx account.
-        Withdraw        // Withdraw tokens from dydx account.
-    }
-
-    struct BridgeData {
-        Action action;              // Action to run on dydx account.
-        address accountOwner;       // The owner of the dydx account.
-        uint256 accountNumber;      // Account number used to identify the owner's specific account.
-        uint256 marketId;           // Market to operate on.
-    }
 
     /// @dev Callback for `IERC20Bridge`. Deposits or withdraws tokens from a dydx account.
     ///      Notes:
@@ -89,13 +79,13 @@ contract DydxBridge is
 
         // Create dydx action.
         IDydx.ActionArgs[] memory actions = new IDydx.ActionArgs[](1);
-        if (bridgeData.action == Action.Deposit) {
+        if (bridgeData.action == BridgeAction.Deposit) {
             actions[0] = _createDepositAction(
                 from,
                 amount,
                 bridgeData
             );
-        } else if (bridgeData.action == Action.Withdraw) {
+        } else if (bridgeData.action == BridgeAction.Withdraw) {
             actions[0] = _createWithdrawAction(
                 to,
                 amount,
