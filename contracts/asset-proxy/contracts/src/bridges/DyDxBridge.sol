@@ -19,25 +19,17 @@
 pragma solidity ^0.5.9;
 pragma experimental ABIEncoderV2;
 
-import "@0x/contracts-erc20/contracts/src/interfaces/IERC20Token.sol";
-import "@0x/contracts-erc20/contracts/src/LibERC20Token.sol";
-import "@0x/contracts-exchange-libs/contracts/src/IWallet.sol";
-import "@0x/contracts-exchange-libs/contracts/src/LibOrder.sol";
 import "@0x/contracts-utils/contracts/src/DeploymentConstants.sol";
-import "@0x/contracts-utils/contracts/src/LibBytes.sol";
 import "@0x/contracts-utils/contracts/src/Authorizable.sol";
 import "../interfaces/IERC20Bridge.sol";
 import "../interfaces/IDydx.sol";
-import "../interfaces/IAssetData.sol";
 
-// solhint-disable space-after-comma
+
 contract DydxBridge is
     IERC20Bridge,
     DeploymentConstants,
     Authorizable
 {
-
-    using LibBytes for bytes;
 
     enum Action {
         Deposit,        // Deposit tokens into dydx account.
@@ -59,6 +51,7 @@ contract DydxBridge is
     ///         3. The order must be signed by the owner or an operator of the dydx account.
     ///            This signature validated by the 0x Exchange.
     ///         4. The `from` address must be the maker (and hence is the owner or operator of the dydx account).
+    ///            This is asserted during execution of this function.
     /// @param from The sender of the tokens.
     /// @param to The recipient of the tokens.
     /// @param amount Minimum amount of `toTokenAddress` tokens to buy.
@@ -121,6 +114,9 @@ contract DydxBridge is
     }
 
     /// @dev Returns a dydx `DepositAction`.
+    /// @param depositFrom Deposit tokens from this address.
+    /// @param amount of tokens to deposit.
+    /// @param bridgeData A `BridgeData` struct.
     function _createDepositAction(
         address depositFrom,
         uint256 amount,
@@ -155,6 +151,9 @@ contract DydxBridge is
     }
 
     /// @dev Returns a dydx `WithdrawAction`.
+    /// @param withdrawTo Withdraw tokens to this address.
+    /// @param amount of tokens to withdraw.
+    /// @param bridgeData A `BridgeData` struct.
     function _createWithdrawAction(
         address withdrawTo,
         uint256 amount,

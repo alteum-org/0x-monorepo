@@ -22,12 +22,13 @@ pragma experimental ABIEncoderV2;
 import "../src/bridges/DydxBridge.sol";
 
 
+// solhint-disable space-after-comma
 contract TestDydxBridge is
     IDydx,
     DydxBridge
 {
 
-    address accountOperator;
+    address public accountOperator;
 
     constructor(address _accountOperator)
         public
@@ -89,7 +90,7 @@ contract TestDydxBridge is
 
     /// @dev Return true iff `operator` equals `accountOperator` in state.
     function getIsLocalOperator(
-        address owner,
+        address /* owner */,
         address operator
     )
         external
