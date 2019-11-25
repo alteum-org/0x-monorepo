@@ -1,5 +1,14 @@
 [
     {
+        "version": "2.1.0-beta.4",
+        "changes": [
+            {
+                "note": "Add aggregator utils",
+                "pr": 2353
+            }
+        ]
+    },
+    {
         "version": "2.1.0-beta.3",
         "changes": [
             {
