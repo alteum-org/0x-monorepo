@@ -23,6 +23,7 @@ import "@0x/contracts-exchange/contracts/src/interfaces/IExchange.sol";
 import "@0x/contracts-exchange-libs/contracts/src/LibOrder.sol";
 import "../src/ERC20BridgeSampler.sol";
 import "../src/IEth2Dai.sol";
+import "../src/IDevUtils.sol";
 import "../src/IKyberNetwork.sol";
 
 
@@ -288,18 +289,39 @@ contract TestERC20BridgeSampler is
         uniswap.createTokenExchanges(tokenAddresses);
     }
 
-    // `IExchange.getOrderInfo()`, overridden to return deterministic order infos.
-    function getOrderInfo(LibOrder.Order memory order)
+    // `IDevUtils.getOrderRelevantStates()`, overridden to return deterministic
+    // states.
+    function getOrderRelevantStates(
+        LibOrder.Order[] memory orders,
+        bytes[] memory signatures
+    )
         public
-        pure
-        returns (LibOrder.OrderInfo memory orderInfo)
+        view
+        returns (
+            LibOrder.OrderInfo[] memory ordersInfo,
+            uint256[] memory fillableTakerAssetAmounts,
+            bool[] memory isValidSignature
+        )
     {
-        // The order hash is just the hash of the salt.
-        bytes32 orderHash = keccak256(abi.encode(order.salt));
-        // Everything else is derived from the hash.
-        orderInfo.orderHash = orderHash;
-        orderInfo.orderStatus = uint8(uint256(orderHash) % uint8(-1));
-        orderInfo.orderTakerAssetFilledAmount = uint256(orderHash) % order.takerAssetAmount;
+        require(
+            orders.length == signatures.length,
+            "ORDERS_SIGNATURES_LENGTH_MISMATCH"
+        );
+        ordersInfo = new LibOrder.OrderInfo[](orders.length);
+        fillableTakerAssetAmounts = new uint256[](orders.length);
+        isValidSignature = new bool[](orders.length);
+        for (uint256 i = 0; i < orders.length; ++i) {
+            // The order hash is just the hash of the salt.
+            bytes32 orderHash = keccak256(abi.encode(orders[i].salt));
+            // Everything else is derived from the hash.
+            ordersInfo[i].orderHash = orderHash;
+            ordersInfo[i].orderStatus = uint8(uint256(orderHash) % uint8(-1));
+            ordersInfo[i].orderTakerAssetFilledAmount =
+                uint256(orderHash) % orders[i].takerAssetAmount;
+            fillableTakerAssetAmounts[i] =
+                orders[i].takerAssetAmount - ordersInfo[i].orderTakerAssetFilledAmount;
+            isValidSignature[i] = uint256(orderHash) % 2 == 1;
+        }
     }
 
     // Overriden to return deterministic decimals.
@@ -312,12 +334,12 @@ contract TestERC20BridgeSampler is
     }
 
     // Overriden to point to a this contract.
-    function _getExchangeContract()
+    function _getDevUtilsContract()
         internal
         view
-        returns (IExchange zeroex)
+        returns (IDevUtils devUtils)
     {
-        return IExchange(address(this));
+        return IDevUtils(address(this));
     }
 
     // Overriden to point to a custom contract.

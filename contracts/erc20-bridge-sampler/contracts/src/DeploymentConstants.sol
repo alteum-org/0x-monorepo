@@ -21,14 +21,15 @@ pragma experimental ABIEncoderV2;
 
 import "@0x/contracts-asset-proxy/contracts/src/interfaces/IUniswapExchangeFactory.sol";
 import "@0x/contracts-exchange/contracts/src/interfaces/IExchange.sol";
+import "./IDevUtils.sol";
 import "./IEth2Dai.sol";
 import "./IKyberNetwork.sol";
 
 
 contract DeploymentConstants {
 
-    /// @dev Address of the 0x Exchange contract.
-    address constant public EXCHANGE_ADDRESS = 0x080bf510FCbF18b91105470639e9561022937712;
+    /// @dev Address of the 0x DevUtils contract.
+    address constant public DEVUTILS_ADDRESS = 0xcCc2431a7335F21d9268bA62F0B32B0f2EFC463f;
     /// @dev Address of the Eth2Dai MatchingMarket contract.
     address constant public ETH2DAI_ADDRESS = 0x39755357759cE0d7f32dC8dC45414CCa409AE24e;
     /// @dev Address of the UniswapExchangeFactory contract.
@@ -40,14 +41,14 @@ contract DeploymentConstants {
     /// @dev Kyber ETH pseudo-address.
     address constant public KYBER_ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    /// @dev An overridable way to retrieve the 0x Exchange contract.
-    /// @return zeroex The 0x Exchange contract.
-    function _getExchangeContract()
+    /// @dev An overridable way to retrieve the 0x DevUtils contract.
+    /// @return devUtils The 0x DevUtils contract.
+    function _getDevUtilsContract()
         internal
         view
-        returns (IExchange zeroex)
+        returns (IDevUtils devUtils)
     {
-        return IExchange(EXCHANGE_ADDRESS);
+        return IDevUtils(DEVUTILS_ADDRESS);
     }
 
     /// @dev An overridable way to retrieve the Eth2Dai exchange contract.

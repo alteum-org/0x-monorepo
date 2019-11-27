@@ -23,11 +23,13 @@ import "@0x/contracts-asset-proxy/contracts/src/interfaces/IUniswapExchangeFacto
 import "@0x/contracts-erc20/contracts/src/LibERC20Token.sol";
 import "@0x/contracts-exchange/contracts/src/interfaces/IExchange.sol";
 import "@0x/contracts-exchange-libs/contracts/src/LibOrder.sol";
+import "@0x/contracts-exchange-libs/contracts/src/LibMath.sol";
+import "./DeploymentConstants.sol";
+import "./IDevUtils.sol";
 import "./IERC20BridgeSampler.sol";
 import "./IEth2Dai.sol";
 import "./IKyberNetwork.sol";
 import "./IUniswapExchangeQuotes.sol";
-import "./DeploymentConstants.sol";
 
 
 contract ERC20BridgeSampler is
@@ -38,26 +40,32 @@ contract ERC20BridgeSampler is
 
     /// @dev Query native orders and sample sell quotes on multiple DEXes at once.
     /// @param orders Native orders to query.
+    /// @param orderSignatures Signatures for each respective order in `orders`.
     /// @param sources Address of each DEX. Passing in an unsupported DEX will throw.
     /// @param takerTokenAmounts Taker token sell amount for each sample.
-    /// @return orderInfos `OrderInfo`s for each order in `orders`.
+    /// @return orderFillableTakerAssetAmounts How much taker asset can be filled
+    ///         by each order in `orders`.
     /// @return makerTokenAmountsBySource Maker amounts bought for each source at
     ///         each taker token amount. First indexed by source index, then sample
     ///         index.
     function queryOrdersAndSampleSells(
         LibOrder.Order[] memory orders,
+        bytes[] memory orderSignatures,
         address[] memory sources,
         uint256[] memory takerTokenAmounts
     )
         public
         view
         returns (
-            LibOrder.OrderInfo[] memory orderInfos,
+            uint256[] memory orderFillableTakerAssetAmounts,
             uint256[][] memory makerTokenAmountsBySource
         )
     {
         require(orders.length != 0, "EMPTY_ORDERS");
-        orderInfos = queryOrders(orders);
+        orderFillableTakerAssetAmounts = getOrderFillableTakerAssetAmounts(
+            orders,
+            orderSignatures
+        );
         makerTokenAmountsBySource = sampleSells(
             sources,
             _assetDataToTokenAddress(orders[0].takerAssetData),
@@ -68,26 +76,32 @@ contract ERC20BridgeSampler is
 
     /// @dev Query native orders and sample buy quotes on multiple DEXes at once.
     /// @param orders Native orders to query.
+    /// @param orderSignatures Signatures for each respective order in `orders`.
     /// @param sources Address of each DEX. Passing in an unsupported DEX will throw.
     /// @param makerTokenAmounts Maker token buy amount for each sample.
-    /// @return orderInfos `OrderInfo`s for each order in `orders`.
+    /// @return orderFillableMakerAssetAmounts How much maker asset can be filled
+    ///         by each order in `orders`.
     /// @return takerTokenAmountsBySource Taker amounts sold for each source at
     ///         each maker token amount. First indexed by source index, then sample
     ///         index.
     function queryOrdersAndSampleBuys(
         LibOrder.Order[] memory orders,
+        bytes[] memory orderSignatures,
         address[] memory sources,
         uint256[] memory makerTokenAmounts
     )
         public
         view
         returns (
-            LibOrder.OrderInfo[] memory orderInfos,
+            uint256[] memory orderFillableMakerAssetAmounts,
             uint256[][] memory makerTokenAmountsBySource
         )
     {
         require(orders.length != 0, "EMPTY_ORDERS");
-        orderInfos = queryOrders(orders);
+        orderFillableMakerAssetAmounts = getOrderFillableMakerAssetAmounts(
+            orders,
+            orderSignatures
+        );
         makerTokenAmountsBySource = sampleBuys(
             sources,
             _assetDataToTokenAddress(orders[0].takerAssetData),
@@ -96,18 +110,61 @@ contract ERC20BridgeSampler is
         );
     }
 
-    /// @dev Queries the status of several native orders.
+    /// @dev Queries the fillable taker asset amounts of native orders.
     /// @param orders Native orders to query.
-    /// @return orderInfos Order info for each respective order.
-    function queryOrders(LibOrder.Order[] memory orders)
+    /// @param orderSignatures Signatures for each respective order in `orders`.
+    /// @return orderFillableTakerAssetAmounts How much taker asset can be filled
+    ///         by each order in `orders`.
+    function getOrderFillableTakerAssetAmounts(
+        LibOrder.Order[] memory orders,
+        bytes[] memory orderSignatures
+    )
         public
         view
-        returns (LibOrder.OrderInfo[] memory orderInfos)
+        returns (uint256[] memory orderFillableTakerAssetAmounts)
     {
-        uint256 numOrders = orders.length;
-        orderInfos = new LibOrder.OrderInfo[](numOrders);
-        for (uint256 i = 0; i < numOrders; i++) {
-            orderInfos[i] = _getExchangeContract().getOrderInfo(orders[i]);
+        LibOrder.OrderInfo[] memory ordersInfo;
+        bool[] memory isValidSignature;
+        (
+            ordersInfo,
+            orderFillableTakerAssetAmounts,
+            isValidSignature
+        ) = _getDevUtilsContract().getOrderRelevantStates(orders, orderSignatures);
+        // The fillable amount is zero if the order is not fillable or if the
+        // signature is invalid.
+        for (uint256 i = 0; i < orders.length; ++i) {
+            if (ordersInfo[i].orderStatus != uint8(LibOrder.OrderStatus.FILLABLE) ||
+                !isValidSignature[i]) {
+                orderFillableTakerAssetAmounts[i] = 0;
+            }
+        }
+    }
+
+    /// @dev Queries the fillable maker asset amounts of native orders.
+    /// @param orders Native orders to query.
+    /// @param orderSignatures Signatures for each respective order in `orders`.
+    /// @return orderFillableMakerAssetAmounts How much maker asset can be filled
+    ///         by each order in `orders`.
+    function getOrderFillableMakerAssetAmounts(
+        LibOrder.Order[] memory orders,
+        bytes[] memory orderSignatures
+    )
+        public
+        view
+        returns (uint256[] memory orderFillableMakerAssetAmounts)
+    {
+        orderFillableMakerAssetAmounts = getOrderFillableTakerAssetAmounts(
+            orders,
+            orderSignatures
+        );
+        // `orderFillableMakerAssetAmounts` now holds taker asset amounts, so
+        // convert them to maker asset amounts.
+        for (uint256 i = 0; i < orders.length; ++i) {
+            orderFillableMakerAssetAmounts[i] = LibMath.getPartialAmountFloor(
+                orderFillableMakerAssetAmounts[i],
+                orders[i].takerAssetAmount,
+                orders[i].makerAssetAmount
+            );
         }
     }
 

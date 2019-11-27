@@ -5,6 +5,10 @@
             {
                 "note": "Created package.",
                 "pr": 2344
+            },
+            {
+                "note": "Remove `queryOrders` functionality in favor of getting fillable asset amounts",
+                "pr": 2353
             }
         ]
     }
