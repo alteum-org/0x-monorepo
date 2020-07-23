@@ -14,7 +14,7 @@ import {
     TraceCollector,
     TraceInfoSubprovider,
     utils,
-} from '@0x/sol-tracing-utils';
+} from '@compound-finance/sol-tracing-utils';
 import * as _ from 'lodash';
 import * as minimatch from 'minimatch';
 

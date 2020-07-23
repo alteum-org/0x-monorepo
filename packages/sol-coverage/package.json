@@ -1,6 +1,6 @@
 {
-    "name": "@0x/sol-coverage",
-    "version": "4.0.10",
+    "name": "@compound-finance/sol-coverage",
+    "version": "4.0.10-alpha.7",
     "engines": {
         "node": ">=6.12"
     },
@@ -25,7 +25,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/0xProject/0x-monorepo.git"
+        "url": "https://github.com/compound-finance/0x-monorepo.git"
     },
     "license": "Apache-2.0",
     "bugs": {
@@ -33,7 +33,7 @@
     },
     "homepage": "https://github.com/0xProject/0x-monorepo/packages/sol-coverage/README.md",
     "dependencies": {
-        "@0x/sol-tracing-utils": "^7.1.0",
+        "@compound-finance/sol-tracing-utils": "^7.1.0-alpha.7",
         "@0x/subproviders": "^6.1.1",
         "@0x/typescript-typings": "^5.1.1",
         "@types/minimatch": "^3.0.3",

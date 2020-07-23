@@ -35,7 +35,9 @@ export const utils = {
             // Last 86 characters is solidity compiler metadata that's different between compilations
             .replace(/.{86}$/, '')
             // Libraries contain their own address at the beginning of the code and it's impossible to know it in advance
-            .replace(/^0x730000000000000000000000000000000000000000/, '0x73........................................');
+            .replace(/^0x730000000000000000000000000000000000000000/, '0x73........................................')
+            // (THIS IS A LARGE HACK) Immutables are all zeros-- allow them to match anything
+            .replace(/0{40,}/g, (l) => l.split('').map(() => '.').join(''));
         // HACK: Node regexes can't be longer that 32767 characters. Contracts bytecode can. We just truncate the regexes. It's safe in practice.
         const MAX_REGEX_LENGTH = 32767;
         const truncatedBytecodeRegex = bytecodeRegex.slice(0, MAX_REGEX_LENGTH);

@@ -92,6 +92,9 @@
         "wsrun": "^2.2.0"
     },
     "resolutions": {
-        "merkle-patricia-tree": "^2.3.2"
+        "merkle-patricia-tree": "^2.3.2",
+        "**/sha3": "^2.1.2",
+        "**/sqlite3": "^4.2.0",
+        "scrypt.js": "https://registry.npmjs.org/@compound-finance/ethereumjs-wallet/-/ethereumjs-wallet-0.6.3.tgz"
     }
 }
